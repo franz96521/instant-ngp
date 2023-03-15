@@ -4721,6 +4721,30 @@ void Testbed::save_snapshot(const fs::path& path, bool include_optimizer_state, 
 
 	tlog::success() << "Saved snapshot '" << path.str() << "'";
 }
+void Testbed::save_raw_volumes()
+{
+	static bool flip_y_and_z_axes = false;
+	BoundingBox aabb = (m_testbed_mode == ETestbedMode::Nerf) ? m_render_aabb : m_aabb;
+	aabb = m_render_aabb;
+	m_mesh.res = 128;
+	auto res3d = get_marching_cubes_res(m_mesh.res, aabb);
+	auto effective_view_dir = flip_y_and_z_axes ? vec3{0.0f, 1.0f, 0.0f} : vec3{0.0f, 0.0f, 1.0f};
+
+	auto dir = m_data_path ;
+	if (!dir.exists())
+	{
+		fs::create_directory(dir);
+	}
+	for (int cascade = 0; (1 << cascade) <= m_aabb.diag().x + 0.5f; ++cascade)
+	{
+		float radius = (1 << cascade) * 0.5f;
+		m_render_aabb.max.x = m_render_aabb.max.y = m_render_aabb.max.z = 0.7f;
+		m_render_aabb.min.x = m_render_aabb.min.y = m_render_aabb.min.z = 0.3f;
+		// Dump raw density values that the user can then convert to alpha as they please.
+		GPUMemory<vec4> rgba = get_rgba_on_grid(res3d, effective_view_dir, true, 0.0f, true);
+		save_rgba_grid_to_raw_file(rgba, dir.str().c_str(), res3d, flip_y_and_z_axes, cascade);
+	}
+}
 
 void Testbed::load_snapshot(const fs::path& path) {
 	auto config = load_network_config(path);
